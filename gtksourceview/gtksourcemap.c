@@ -71,6 +71,7 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 		gchar *tmp;
 
 		tmp = _gtk_source_pango_font_description_to_css (priv->font_desc);
+		/* FIXME strange ternary */
 		css = g_strdup_printf ("GtkSourceView { %s }\n", tmp ?: "");
 		gtk_css_provider_load_from_data (priv->view_css_provider, css, -1, NULL);
 		g_free (css);
@@ -90,6 +91,11 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 			gchar *background = NULL;
 			GtkSourceStyle *style;
 
+			/* FIXME hard to understand what the condition does with
+			 * a quick glance. It's better to assign variables
+			 * outside a condition, and replace "!style" with
+			 * "style == NULL", it's clearer IMO.
+			 */
 			if (!(style = gtk_source_style_scheme_get_style (style_scheme, "map-overlay")) &&
 			    !(style = gtk_source_style_scheme_get_style (style_scheme, "selection")))
 			{
@@ -118,15 +124,19 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 				gchar *css;
 
 				css = g_strdup_printf ("GtkSourceMap GtkEventBox {"
-				                         "background-color: %s;"
-				                         "opacity: 0.75;"
-				                         "border-top: 1px solid shade(%s,0.9);"
-				                         "border-bottom: 1px solid shade(%s,0.9);"
+				                       "  background-color: %s;"
+				                       "  opacity: 0.75;"
+				                       "  border-top: 1px solid shade(%s,0.9);"
+				                       "  border-bottom: 1px solid shade(%s,0.9);"
 				                       "}\n",
-				                       background, background, background);
+				                       background,
+						       background,
+						       background);
+
 				gtk_css_provider_load_from_data (priv->box_css_provider, css, -1, NULL);
 				g_free (css);
 			}
+
 			g_free (background);
 		}
 	}
@@ -807,6 +817,9 @@ gtk_source_map_set_view (GtkSourceMap  *map,
 
 	priv = gtk_source_map_get_instance_private (map);
 
+	/* FIXME with early returns it's possible to avoid the two indentation
+	 * levels.
+	 */
 	if (gtk_source_set_weak_pointer (&priv->view, view))
 	{
 		if (view != NULL)
