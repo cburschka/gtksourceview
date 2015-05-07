@@ -125,10 +125,10 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 				gchar *css;
 
 				css = g_strdup_printf ("GtkSourceMap GtkEventBox {"
-				                       "  background-color: %s;"
-				                       "  opacity: 0.75;"
-				                       "  border-top: 1px solid shade(%s,0.9);"
-				                       "  border-bottom: 1px solid shade(%s,0.9);"
+				                         "background-color: %s;"
+				                         "opacity: 0.75;"
+				                         "border-top: 1px solid shade(%s,0.9);"
+				                         "border-bottom: 1px solid shade(%s,0.9);"
 				                       "}\n",
 				                       background,
 						       background,
