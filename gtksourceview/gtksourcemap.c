@@ -26,12 +26,6 @@
 #define DEFAULT_WIDTH        100
 #define CONCEAL_TIMEOUT      2000
 
-#define gtk_source_clear_weak_pointer(ptr) \
-  (*(ptr) ? (g_object_remove_weak_pointer((GObject*)*(ptr), (gpointer*)ptr),*(ptr)=NULL,1) : 0)
-
-#define gtk_source_set_weak_pointer(ptr,obj) \
-  ((obj!=*(ptr))?(gtk_source_clear_weak_pointer(ptr),*(ptr)=obj,((obj)?g_object_add_weak_pointer((GObject*)obj,(gpointer*)ptr),NULL:NULL),1):0)
-
 typedef struct
 {
 	PangoFontDescription *font_desc;
@@ -556,7 +550,13 @@ gtk_source_map_destroy (GtkWidget *widget)
 	g_clear_object (&priv->box_css_provider);
 	g_clear_object (&priv->view_css_provider);
 	g_clear_pointer (&priv->font_desc, pango_font_description_free);
-	gtk_source_clear_weak_pointer (&priv->view);
+
+	if (priv->view != NULL)
+	{
+		g_object_remove_weak_pointer (G_OBJECT (priv->view),
+		                              (gpointer *)&priv->view);
+		priv->view = NULL;
+	}
 
 	GTK_WIDGET_CLASS (gtk_source_map_parent_class)->destroy (widget);
 }
@@ -812,65 +812,74 @@ gtk_source_map_set_view (GtkSourceMap  *map,
 
 	priv = gtk_source_map_get_instance_private (map);
 
-	/* FIXME with early returns it's possible to avoid the two indentation
-	 * levels.
-	 */
-	if (gtk_source_set_weak_pointer (&priv->view, view))
+	if (priv->view == view)
 	{
-		if (view != NULL)
+		return;
+	}
+
+	if (priv->view != NULL)
+	{
+		g_object_remove_weak_pointer (G_OBJECT (priv->view),
+		                              (gpointer *)&priv->view);
+	}
+
+	priv->view = view;
+	if (view != NULL)
+	{
+		GtkAdjustment *vadj;
+		GtkTextBuffer *buffer;
+
+		g_object_add_weak_pointer (G_OBJECT (view),
+		                           (gpointer *)&priv->view);
+
+		g_object_bind_property (priv->view, "buffer",
+		                        priv->child_view, "buffer",
+		                        G_BINDING_SYNC_CREATE);
+		g_object_bind_property (priv->view, "indent-width",
+		                        priv->child_view, "indent-width",
+		                        G_BINDING_SYNC_CREATE);
+		g_object_bind_property (priv->view, "tab-width",
+		                        priv->child_view, "tab-width",
+		                        G_BINDING_SYNC_CREATE);
+
+		g_signal_connect_object (view,
+		                         "notify::buffer",
+		                         G_CALLBACK (gtk_source_map__view_notify_buffer),
+		                         map,
+		                         G_CONNECT_SWAPPED);
+
+		buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (view));
+		gtk_source_map__buffer_notify_style_scheme (map, NULL, buffer);
+
+		vadj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (priv->view));
+
+		g_signal_connect_object (vadj,
+		                         "value-changed",
+		                         G_CALLBACK (gtk_source_map__view_vadj_value_changed),
+		                         map,
+		                         G_CONNECT_SWAPPED);
+		g_signal_connect_object (vadj,
+		                         "notify::upper",
+		                         G_CALLBACK (gtk_source_map__view_vadj_notify_upper),
+		                         map,
+		                         G_CONNECT_SWAPPED);
+
+		if ((gtk_widget_get_events (GTK_WIDGET (priv->view)) & GDK_ENTER_NOTIFY_MASK) == 0)
 		{
-			GtkAdjustment *vadj;
-			GtkTextBuffer *buffer;
-
-			g_object_bind_property (priv->view, "buffer",
-			                        priv->child_view, "buffer",
-			                        G_BINDING_SYNC_CREATE);
-			g_object_bind_property (priv->view, "indent-width",
-			                        priv->child_view, "indent-width",
-			                        G_BINDING_SYNC_CREATE);
-			g_object_bind_property (priv->view, "tab-width",
-			                        priv->child_view, "tab-width",
-			                        G_BINDING_SYNC_CREATE);
-
-			g_signal_connect_object (view,
-			                         "notify::buffer",
-			                         G_CALLBACK (gtk_source_map__view_notify_buffer),
-			                         map,
-			                         G_CONNECT_SWAPPED);
-
-			buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (view));
-			gtk_source_map__buffer_notify_style_scheme (map, NULL, buffer);
-
-			vadj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (priv->view));
-
-			g_signal_connect_object (vadj,
-			                         "value-changed",
-			                         G_CALLBACK (gtk_source_map__view_vadj_value_changed),
-			                         map,
-			                         G_CONNECT_SWAPPED);
-			g_signal_connect_object (vadj,
-			                         "notify::upper",
-			                         G_CALLBACK (gtk_source_map__view_vadj_notify_upper),
-			                         map,
-			                         G_CONNECT_SWAPPED);
-
-			if ((gtk_widget_get_events (GTK_WIDGET (priv->view)) & GDK_ENTER_NOTIFY_MASK) == 0)
-			{
-				gtk_widget_add_events (GTK_WIDGET (priv->view),
-				                       GDK_ENTER_NOTIFY_MASK);
-			}
-
-			if ((gtk_widget_get_events (GTK_WIDGET (priv->view)) & GDK_LEAVE_NOTIFY_MASK) == 0)
-			{
-				gtk_widget_add_events (GTK_WIDGET (priv->view),
-				                       GDK_LEAVE_NOTIFY_MASK);
-			}
-
-			gtk_source_map_rebuild_css (map);
+			gtk_widget_add_events (GTK_WIDGET (priv->view),
+			                       GDK_ENTER_NOTIFY_MASK);
 		}
 
-		g_object_notify_by_pspec (G_OBJECT (map), pspecs[PROP_VIEW]);
+		if ((gtk_widget_get_events (GTK_WIDGET (priv->view)) & GDK_LEAVE_NOTIFY_MASK) == 0)
+		{
+			gtk_widget_add_events (GTK_WIDGET (priv->view),
+			                       GDK_LEAVE_NOTIFY_MASK);
+		}
+
+		gtk_source_map_rebuild_css (map);
 	}
+
+	g_object_notify_by_pspec (G_OBJECT (map), pspecs[PROP_VIEW]);
 }
 
 /**
