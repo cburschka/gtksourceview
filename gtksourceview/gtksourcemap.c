@@ -79,8 +79,15 @@ static void
 gtk_source_map_rebuild_css (GtkSourceMap *map)
 {
 	GtkSourceMapPrivate *priv;
+	GtkSourceStyleScheme *style_scheme;
+	GtkTextBuffer *buffer;
 
 	priv = gtk_source_map_get_instance_private (map);
+
+	if (priv->view == NULL)
+	{
+		return;
+	}
 
 	if (priv->font_desc != NULL)
 	{
@@ -94,62 +101,56 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 		g_free (tmp);
 	}
 
-	if (priv->view != NULL)
+	buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (priv->view));
+	style_scheme = gtk_source_buffer_get_style_scheme (GTK_SOURCE_BUFFER (buffer));
+
+	if (style_scheme != NULL)
 	{
-		GtkSourceStyleScheme *style_scheme;
-		GtkTextBuffer *buffer;
+		gchar *background = NULL;
+		GtkSourceStyle *style;
 
-		buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (priv->view));
-		style_scheme = gtk_source_buffer_get_style_scheme (GTK_SOURCE_BUFFER (buffer));
-
-		if (style_scheme != NULL)
+		style = gtk_source_style_scheme_get_style (style_scheme, "map-overlay");
+		if (style == NULL)
 		{
-			gchar *background = NULL;
-			GtkSourceStyle *style;
+			GtkStyleContext *context;
+			GdkRGBA color;
 
-			style = gtk_source_style_scheme_get_style (style_scheme, "map-overlay");
-			if (style == NULL)
-			{
-				GtkStyleContext *context;
-				GdkRGBA color;
-
-				/* FIXME: how was again to get the selection color? */
-				context = gtk_widget_get_style_context (GTK_WIDGET (priv->view));
-				gtk_style_context_save (context);
-				gtk_style_context_add_class (context, "view");
-				gtk_style_context_get_color (context,
-				                             GTK_STATE_FLAG_NORMAL,
-				                             &color);
-				gtk_style_context_restore (context);
-				background = gdk_rgba_to_string (&color);
-			}
-			else
-			{
-				g_object_get (style,
-				              "background", &background,
-				              NULL);
-			}
-
-			if (background != NULL)
-			{
-				gchar *css;
-
-				css = g_strdup_printf ("GtkSourceMap GtkEventBox {"
-				                         "background-color: %s;"
-				                         "opacity: 0.75;"
-				                         "border-top: 1px solid shade(%s,0.9);"
-				                         "border-bottom: 1px solid shade(%s,0.9);"
-				                       "}\n",
-				                       background,
-				                       background,
-				                       background);
-
-				gtk_css_provider_load_from_data (priv->box_css_provider, css, -1, NULL);
-				g_free (css);
-			}
-
-			g_free (background);
+			/* FIXME: how was again to get the selection color? */
+			context = gtk_widget_get_style_context (GTK_WIDGET (priv->view));
+			gtk_style_context_save (context);
+			gtk_style_context_add_class (context, "view");
+			gtk_style_context_get_color (context,
+			                             GTK_STATE_FLAG_NORMAL,
+			                             &color);
+			gtk_style_context_restore (context);
+			background = gdk_rgba_to_string (&color);
 		}
+		else
+		{
+			g_object_get (style,
+			              "background", &background,
+			              NULL);
+		}
+
+		if (background != NULL)
+		{
+			gchar *css;
+
+			css = g_strdup_printf ("GtkSourceMap GtkEventBox {"
+			                         "background-color: %s;"
+			                         "opacity: 0.75;"
+			                         "border-top: 1px solid shade(%s,0.9);"
+			                         "border-bottom: 1px solid shade(%s,0.9);"
+			                       "}\n",
+			                       background,
+			                       background,
+			                       background);
+
+			gtk_css_provider_load_from_data (priv->box_css_provider, css, -1, NULL);
+			g_free (css);
+		}
+
+		g_free (background);
 	}
 }
 
