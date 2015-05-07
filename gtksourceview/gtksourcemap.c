@@ -24,6 +24,27 @@
 
 #include <glib/gi18n.h>
 
+/**
+ * SECTION:map
+ * @Short_description: Widget that displays a map for a specific #GtkSourceView
+ * @Title: GtkSourceMap
+ * @See_also: #GtkSourceView
+ *
+ * #GtkSourceMap is a widget that maps the content of a #GtkSourceView into
+ * a smaller view so the user can have a quick overview of the whole document.
+ *
+ * Call gtk_source_map_set_view() or set the #GtkSourceMap:view property
+ * to set the view that the #GtkSourceMap should do the mapping from.
+ *
+ * In order to extend the internal #GtkSourceView, gtk_source_map_get_child_view()
+ * is provided. For example, one could extend it by adding a gutter that shows
+ * the changes done while editing the document.
+ *
+ * GtkSourceMap derives from #GtkBin only as an implementation detail. Applications
+ * should not use any API specific to #GtkBin to operate on this object. It should
+ * be threated a normal #GtkWidget.
+ */
+
 #define DEFAULT_WIDTH        100
 #define CONCEAL_TIMEOUT      2000
 
