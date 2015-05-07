@@ -569,9 +569,16 @@ gtk_source_map_get_property (GObject    *object,
                              GParamSpec *pspec)
 {
 	GtkSourceMap *map = GTK_SOURCE_MAP (object);
+	GtkSourceMapPrivate *priv;
+
+	priv = gtk_source_map_get_instance_private (map);
 
 	switch (prop_id)
 	{
+		case PROP_FONT_DESC:
+			g_value_set_boxed (value, priv->font_desc);
+			break;
+
 		case PROP_VIEW:
 			g_value_set_object (value, gtk_source_map_get_view (map));
 			break;
@@ -591,12 +598,12 @@ gtk_source_map_set_property (GObject      *object,
 
 	switch (prop_id)
 	{
-		case PROP_FONT_DESC:
-			gtk_source_map_set_font_desc (map, g_value_get_boxed (value));
-			break;
-
 		case PROP_VIEW:
 			gtk_source_map_set_view (map, g_value_get_object (value));
+			break;
+
+		case PROP_FONT_DESC:
+			gtk_source_map_set_font_desc (map, g_value_get_boxed (value));
 			break;
 
 		default:
@@ -630,7 +637,7 @@ gtk_source_map_class_init (GtkSourceMapClass *klass)
 		                    _("Font Description"),
 		                    _("The Pango font description to use."),
 		                    PANGO_TYPE_FONT_DESCRIPTION,
-		                    (G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+		                    (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
 	g_object_class_install_properties (object_class, LAST_PROP, pspecs);
 }
