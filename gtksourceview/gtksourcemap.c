@@ -125,8 +125,8 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 				                         "border-bottom: 1px solid shade(%s,0.9);"
 				                       "}\n",
 				                       background,
-						       background,
-						       background);
+				                       background,
+				                       background);
 
 				gtk_css_provider_load_from_data (priv->box_css_provider, css, -1, NULL);
 				g_free (css);
