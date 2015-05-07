@@ -18,10 +18,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <glib/gi18n.h>
 
 #include "gtksourcemap.h"
 #include "gtksourceview-utils.h"
+
+#include <glib/gi18n.h>
 
 #define DEFAULT_WIDTH        100
 #define CONCEAL_TIMEOUT      2000
