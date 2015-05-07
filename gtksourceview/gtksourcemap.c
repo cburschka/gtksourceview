@@ -92,13 +92,8 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 			gchar *background = NULL;
 			GtkSourceStyle *style;
 
-			/* FIXME hard to understand what the condition does with
-			 * a quick glance. It's better to assign variables
-			 * outside a condition, and replace "!style" with
-			 * "style == NULL", it's clearer IMO.
-			 */
-			if (!(style = gtk_source_style_scheme_get_style (style_scheme, "map-overlay")) &&
-			    !(style = gtk_source_style_scheme_get_style (style_scheme, "selection")))
+			style = gtk_source_style_scheme_get_style (style_scheme, "map-overlay");
+			if (style == NULL)
 			{
 				GtkStyleContext *context;
 				GdkRGBA color;
