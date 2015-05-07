@@ -1,3 +1,4 @@
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8; coding: utf-8 -*- */
 /* gtksourcemap.c
  *
  * Copyright (C) 2015 Christian Hergert <christian@hergert.me>
