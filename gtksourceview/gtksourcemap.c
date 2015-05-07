@@ -204,8 +204,8 @@ update_child_vadjustment (GtkSourceMap *map)
 }
 
 static void
-gtk_source_map__view_vadj_value_changed (GtkSourceMap  *map,
-                                         GtkAdjustment *vadj)
+view_vadj_value_changed (GtkSourceMap  *map,
+                         GtkAdjustment *vadj)
 {
 	GtkSourceMapPrivate *priv;
 	gdouble page_size;
@@ -226,32 +226,32 @@ gtk_source_map__view_vadj_value_changed (GtkSourceMap  *map,
 }
 
 static void
-gtk_source_map__view_vadj_notify_upper (GtkSourceMap  *map,
-                                        GParamSpec    *pspec,
-                                        GtkAdjustment *vadj)
+view_vadj_notify_upper (GtkSourceMap  *map,
+                        GParamSpec    *pspec,
+                        GtkAdjustment *vadj)
 {
 	update_scrubber_height (map);
 }
 
 static void
-gtk_source_map__buffer_notify_style_scheme (GtkSourceMap  *map,
-                                            GParamSpec    *pspec,
-                                            GtkTextBuffer *buffer)
+buffer_notify_style_scheme (GtkSourceMap  *map,
+                            GParamSpec    *pspec,
+                            GtkTextBuffer *buffer)
 {
 	gtk_source_map_rebuild_css (map);
 }
 
 static void
-gtk_source_map__view_notify_buffer (GtkSourceMap  *map,
-                                    GParamSpec    *pspec,
-                                    GtkSourceView *view)
+view_notify_buffer (GtkSourceMap  *map,
+                    GParamSpec    *pspec,
+                    GtkSourceView *view)
 {
 	GtkTextBuffer *buffer;
 
 	buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (view));
 	g_signal_connect_object (buffer,
 	                         "notify::style-scheme",
-	                         G_CALLBACK (gtk_source_map__buffer_notify_style_scheme),
+	                         G_CALLBACK (buffer_notify_style_scheme),
 	                         map,
 	                         G_CONNECT_SWAPPED);
 
@@ -348,9 +348,9 @@ gtk_source_map_get_preferred_height (GtkWidget *widget,
 }
 
 static gboolean
-gtk_source_map__child_view_button_press_event (GtkSourceMap   *map,
-                                               GdkEventButton *event,
-                                               GtkSourceView  *child_view)
+child_view_button_press_event (GtkSourceMap   *map,
+                               GdkEventButton *event,
+                               GtkSourceView  *child_view)
 {
 	GtkSourceMapPrivate *priv;
 
@@ -375,9 +375,9 @@ gtk_source_map__child_view_button_press_event (GtkSourceMap   *map,
 }
 
 static void
-gtk_source_map__child_view_state_flags_changed (GtkWidget     *widget,
-                                                GtkStateFlags  flags,
-                                                GtkWidget     *child_view)
+child_view_state_flags_changed (GtkWidget     *widget,
+                                GtkStateFlags  flags,
+                                GtkWidget     *child_view)
 {
 	GdkWindow *window;
 
@@ -390,16 +390,16 @@ gtk_source_map__child_view_state_flags_changed (GtkWidget     *widget,
 }
 
 static void
-gtk_source_map__child_view_realize_after (GtkWidget *widget,
-                                          GtkWidget *child_view)
+child_view_realize_after (GtkWidget *widget,
+                          GtkWidget *child_view)
 {
-	gtk_source_map__child_view_state_flags_changed (widget, 0, child_view);
+	child_view_state_flags_changed (widget, 0, child_view);
 }
 
 static gboolean
-gtk_source_map__overlay_box_button_press_event (GtkSourceMap   *map,
-                                                GdkEventButton *event,
-                                                GtkEventBox    *overlay_box)
+overlay_box_button_press_event (GtkSourceMap   *map,
+                                GdkEventButton *event,
+                                GtkEventBox    *overlay_box)
 {
 	GtkSourceMapPrivate *priv;
 
@@ -413,9 +413,9 @@ gtk_source_map__overlay_box_button_press_event (GtkSourceMap   *map,
 }
 
 static gboolean
-gtk_source_map__overlay_box_button_release_event (GtkSourceMap   *map,
-                                                  GdkEventButton *event,
-                                                  GtkEventBox    *overlay_box)
+overlay_box_button_release_event (GtkSourceMap   *map,
+                                  GdkEventButton *event,
+                                  GtkEventBox    *overlay_box)
 {
 	GtkSourceMapPrivate *priv;
 
@@ -429,9 +429,9 @@ gtk_source_map__overlay_box_button_release_event (GtkSourceMap   *map,
 }
 
 static gboolean
-gtk_source_map__overlay_box_motion_notify_event (GtkSourceMap   *map,
-                                                 GdkEventMotion *event,
-                                                 GtkEventBox    *overlay_box)
+overlay_box_motion_notify_event (GtkSourceMap   *map,
+                                 GdkEventMotion *event,
+                                 GtkEventBox    *overlay_box)
 {
 	GtkSourceMapPrivate *priv;
 
@@ -716,7 +716,7 @@ gtk_source_map_init (GtkSourceMap *map)
 
 	g_signal_connect_object (priv->child_view,
 	                         "button-press-event",
-	                         G_CALLBACK (gtk_source_map__child_view_button_press_event),
+	                         G_CALLBACK (child_view_button_press_event),
 	                         map,
 	                         G_CONNECT_SWAPPED);
 	gtk_widget_add_events (GTK_WIDGET (priv->child_view), GDK_SCROLL_MASK);
@@ -727,12 +727,12 @@ gtk_source_map_init (GtkSourceMap *map)
 	                         G_CONNECT_SWAPPED);
 	g_signal_connect_object (priv->child_view,
 	                         "state-flags-changed",
-	                         G_CALLBACK (gtk_source_map__child_view_state_flags_changed),
+	                         G_CALLBACK (child_view_state_flags_changed),
 	                         map,
 	                         G_CONNECT_SWAPPED | G_CONNECT_AFTER);
 	g_signal_connect_object (priv->child_view,
 	                         "realize",
-	                         G_CALLBACK (gtk_source_map__child_view_realize_after),
+	                         G_CALLBACK (child_view_realize_after),
 	                         map,
 	                         G_CONNECT_SWAPPED | G_CONNECT_AFTER);
 
@@ -752,7 +752,7 @@ gtk_source_map_init (GtkSourceMap *map)
 	                                  NULL);
 	g_signal_connect_object (priv->overlay_box,
 	                         "button-press-event",
-	                         G_CALLBACK (gtk_source_map__overlay_box_button_press_event),
+	                         G_CALLBACK (overlay_box_button_press_event),
 	                         map,
 	                         G_CONNECT_SWAPPED);
 	g_signal_connect_object (priv->overlay_box,
@@ -762,12 +762,12 @@ gtk_source_map_init (GtkSourceMap *map)
 	                         G_CONNECT_SWAPPED);
 	g_signal_connect_object (priv->overlay_box,
 	                         "button-release-event",
-	                         G_CALLBACK (gtk_source_map__overlay_box_button_release_event),
+	                         G_CALLBACK (overlay_box_button_release_event),
 	                         map,
 	                         G_CONNECT_SWAPPED);
 	g_signal_connect_object (priv->overlay_box,
 	                         "motion-notify-event",
-	                         G_CALLBACK (gtk_source_map__overlay_box_motion_notify_event),
+	                         G_CALLBACK (overlay_box_motion_notify_event),
 	                         map,
 	                         G_CONNECT_SWAPPED);
 	context = gtk_widget_get_style_context (GTK_WIDGET (priv->overlay_box));
@@ -852,23 +852,23 @@ gtk_source_map_set_view (GtkSourceMap  *map,
 
 		g_signal_connect_object (view,
 		                         "notify::buffer",
-		                         G_CALLBACK (gtk_source_map__view_notify_buffer),
+		                         G_CALLBACK (view_notify_buffer),
 		                         map,
 		                         G_CONNECT_SWAPPED);
 
 		buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (view));
-		gtk_source_map__buffer_notify_style_scheme (map, NULL, buffer);
+		buffer_notify_style_scheme (map, NULL, buffer);
 
 		vadj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (priv->view));
 
 		g_signal_connect_object (vadj,
 		                         "value-changed",
-		                         G_CALLBACK (gtk_source_map__view_vadj_value_changed),
+		                         G_CALLBACK (view_vadj_value_changed),
 		                         map,
 		                         G_CONNECT_SWAPPED);
 		g_signal_connect_object (vadj,
 		                         "notify::upper",
-		                         G_CALLBACK (gtk_source_map__view_vadj_notify_upper),
+		                         G_CALLBACK (view_vadj_notify_upper),
 		                         map,
 		                         G_CONNECT_SWAPPED);
 
