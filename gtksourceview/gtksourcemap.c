@@ -72,8 +72,7 @@ gtk_source_map_rebuild_css (GtkSourceMap *map)
 		gchar *tmp;
 
 		tmp = _gtk_source_pango_font_description_to_css (priv->font_desc);
-		/* FIXME strange ternary */
-		css = g_strdup_printf ("GtkSourceView { %s }\n", tmp ?: "");
+		css = g_strdup_printf ("GtkSourceView { %s }\n", tmp != NULL ? tmp : "");
 		gtk_css_provider_load_from_data (priv->view_css_provider, css, -1, NULL);
 		g_free (css);
 		g_free (tmp);
