@@ -1,13 +1,14 @@
-SUBDIRS = gtksourceview po data docs tests
+SUBDIRS = gtksourceview po data docs tests testsuite build
 
 pkgconfig_DATA = gtksourceview-3.0.pc
 
 EXTRA_DIST = \
 	gtksourceview.doap \
 	gtksourceview-3.0.pc.in	\
-	gtksourceview-zip.in \
 	HACKING \
-	MAINTAINERS
+	MAINTAINERS \
+	config.h.win32.in \
+	config.h.win32
 
 MAINTAINERCLEANFILES = 		\
 	ABOUT-NLS		\

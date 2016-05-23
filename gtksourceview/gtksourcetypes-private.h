@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef __GTK_SOURCE_TYPES_PRIVATE_H__
-#define __GTK_SOURCE_TYPES_PRIVATE_H__
+#ifndef GTK_SOURCE_TYPES_PRIVATE_H
+#define GTK_SOURCE_TYPES_PRIVATE_H
 
 #include <glib.h>
 
@@ -39,6 +39,13 @@ typedef struct _GtkSourcePixbufHelper		GtkSourcePixbufHelper;
 typedef struct _GtkSourceRegex			GtkSourceRegex;
 typedef struct _GtkSourceUndoManagerDefault	GtkSourceUndoManagerDefault;
 
+#ifdef _MSC_VER
+/* For Visual Studio, we need to export the symbols used by the unit tests */
+#define GTK_SOURCE_INTERNAL __declspec(dllexport)
+#else
+#define GTK_SOURCE_INTERNAL G_GNUC_INTERNAL
+#endif
+
 G_END_DECLS
 
-#endif /* __GTK_SOURCE_TYPES_PRIVATE_H__ */
+#endif /* GTK_SOURCE_TYPES_PRIVATE_H */

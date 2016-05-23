@@ -22,16 +22,17 @@
  */
 
 #include <gtk/gtk.h>
-#include "gtksourceview/gtktextregion.h"
+#include "gtksourceview/gtksourceregion.h"
 
 static void
 test_region (void)
 {
 	GtkTextBuffer *buffer;
-	GtkTextRegion *region, *intersection;
-	GtkTextRegionIterator reg_iter;
+	GtkSourceRegion *region, *intersection;
+	GtkSourceRegionIter reg_iter;
 	GtkTextIter iter1, iter2;
-	gint i;
+	guint i;
+	gchar *region_str = NULL;
 
 #define NUM_OPS 23
 
@@ -91,13 +92,13 @@ test_region (void)
 	};
 
 	buffer = gtk_text_buffer_new (NULL);
-	region = gtk_text_region_new (buffer);
+	region = gtk_source_region_new (buffer);
 
 	gtk_text_buffer_get_start_iter (buffer, &iter1);
-	gtk_text_buffer_insert (buffer, &iter1, "This is a test of GtkTextRegion", -1);
+	gtk_text_buffer_insert (buffer, &iter1, "This is a test of GtkSourceRegion", -1);
 
-	gtk_text_region_get_iterator (region, &reg_iter, 0);
-	if (!gtk_text_region_iterator_is_end (&reg_iter)) {
+	gtk_source_region_get_start_region_iter (region, &reg_iter);
+	if (!gtk_source_region_iter_is_end (&reg_iter)) {
 		g_print ("problem fetching iterator for an empty region\n");
 		g_assert_not_reached ();
 	}
@@ -110,14 +111,17 @@ test_region (void)
 
 		if (ops [i][0] > 0) {
 			op_name = "added";
-			gtk_text_region_add (region, &iter1, &iter2);
+			gtk_source_region_add (region, &iter1, &iter2);
 		} else {
 			op_name = "deleted";
-			gtk_text_region_subtract (region, &iter1, &iter2);
+			gtk_source_region_subtract (region, &iter1, &iter2);
 		}
 		g_print ("%s %d-%d\n", op_name, ops [i][1], ops [i][2]);
 
-		gtk_text_region_debug_print (region);
+		region_str = gtk_source_region_to_string (region);
+		g_print ("%s\n", region_str);
+		g_free (region_str);
+		region_str = NULL;
 	}
 
 	for (i = 0; i < NUM_INTERSECTS; i++) {
@@ -125,46 +129,36 @@ test_region (void)
 		gtk_text_buffer_get_iter_at_offset (buffer, &iter2, inter [i][1]);
 
 		g_print ("intersect %d-%d\n", inter [i][0], inter [i][1]);
-		intersection = gtk_text_region_intersect (region, &iter1, &iter2);
+		intersection = gtk_source_region_intersect (region, &iter1, &iter2);
 		if (intersection) {
-			gtk_text_region_debug_print (intersection);
-			gtk_text_region_destroy (intersection);
+			region_str = gtk_source_region_to_string (region);
+			g_print ("%s\n", region_str);
+			g_free (region_str);
+			region_str = NULL;
+
+			g_clear_object (&intersection);
 		} else {
 			g_print ("no intersection\n");
 		}
 	}
 
 	i = 0;
-	gtk_text_region_get_iterator (region, &reg_iter, 0);
+	gtk_source_region_get_start_region_iter (region, &reg_iter);
 
-	while (!gtk_text_region_iterator_is_end (&reg_iter))
+	while (!gtk_source_region_iter_is_end (&reg_iter))
 	{
-		GtkTextIter s, e, s1, e1;
+		GtkTextIter s, e;
 
-		gtk_text_region_iterator_get_subregion (&reg_iter,
-							&s, &e);
-		gtk_text_region_nth_subregion (region, i, &s1, &e1);
+		gtk_source_region_iter_get_subregion (&reg_iter,
+						      &s, &e);
 
-		if (!gtk_text_iter_equal (&s, &s1) ||
-		    !gtk_text_iter_equal (&e, &e1))
-		{
-			g_print ("problem iterating\n");
-			g_assert_not_reached ();
-		}
-
-		++i;
-		gtk_text_region_iterator_next (&reg_iter);
+		i++;
+		gtk_source_region_iter_next (&reg_iter);
 	}
 
-	if (i != gtk_text_region_subregions (region))
-	{
-		g_print ("problem iterating all subregions\n");
-		g_assert_not_reached ();
-	}
+	g_print ("iterated %u subregions\n", i);
 
-	g_print ("iterated %d subregions\n", i);
-
-	gtk_text_region_destroy (region);
+	g_object_unref (region);
 	g_object_unref (buffer);
 }
 

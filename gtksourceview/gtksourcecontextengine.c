@@ -28,7 +28,7 @@
 #include <string.h>
 #include <glib.h>
 #include "gtksourceview-i18n.h"
-#include "gtktextregion.h"
+#include "gtksourceregion.h"
 #include "gtksourcelanguage.h"
 #include "gtksourcelanguage-private.h"
 #include "gtksourcebuffer.h"
@@ -439,7 +439,7 @@ struct _GtkSourceContextEnginePrivate
 	gboolean disabled;
 
 	/* Region covering the unhighlighted text. */
-	GtkTextRegion *refresh_region;
+	GtkSourceRegion *refresh_region;
 
 	/* Tree of contexts. */
 	Context *root_context;
@@ -945,31 +945,31 @@ ensure_highlighted (GtkSourceContextEngine *ce,
 		    const GtkTextIter      *start,
 		    const GtkTextIter      *end)
 {
-	GtkTextRegion *region;
-	GtkTextRegionIterator reg_iter;
+	GtkSourceRegion *region;
+	GtkSourceRegionIter reg_iter;
 
 	/* Get the subregions not yet highlighted. */
-	region = gtk_text_region_intersect (ce->priv->refresh_region, start, end);
+	region = gtk_source_region_intersect (ce->priv->refresh_region, start, end);
 
 	if (region == NULL)
 		return;
 
-	gtk_text_region_get_iterator (region, &reg_iter, 0);
+	gtk_source_region_get_start_region_iter (region, &reg_iter);
 
 	/* Highlight all subregions from the intersection.
 	 * hopefully this will only be one subregion. */
-	while (!gtk_text_region_iterator_is_end (&reg_iter))
+	while (!gtk_source_region_iter_is_end (&reg_iter))
 	{
 		GtkTextIter s, e;
-		gtk_text_region_iterator_get_subregion (&reg_iter, &s, &e);
+		gtk_source_region_iter_get_subregion (&reg_iter, &s, &e);
 		highlight_region (ce, &s, &e);
-		gtk_text_region_iterator_next (&reg_iter);
+		gtk_source_region_iter_next (&reg_iter);
 	}
 
-	gtk_text_region_destroy (region);
+	g_clear_object (&region);
 
 	/* Remove the just highlighted region. */
-	gtk_text_region_subtract (ce->priv->refresh_region, start, end);
+	gtk_source_region_subtract (ce->priv->refresh_region, start, end);
 }
 
 static GtkTextTag *
@@ -2298,7 +2298,7 @@ enable_highlight (GtkSourceContextEngine *ce,
 
 	if (enable)
 	{
-		gtk_text_region_add (ce->priv->refresh_region, &start, &end);
+		gtk_source_region_add (ce->priv->refresh_region, &start, &end);
 
 		refresh_range (ce, &start, &end);
 	}
@@ -2559,9 +2559,7 @@ gtk_source_context_engine_attach_buffer (GtkSourceEngine *engine,
 
 		destroy_context_classes_list (ce);
 
-		if (ce->priv->refresh_region != NULL)
-			gtk_text_region_destroy (ce->priv->refresh_region);
-		ce->priv->refresh_region = NULL;
+		g_clear_object (&ce->priv->refresh_region);
 	}
 
 	ce->priv->buffer = buffer;
@@ -2601,7 +2599,7 @@ gtk_source_context_engine_attach_buffer (GtkSourceEngine *engine,
 		}
 
 		g_object_get (buffer, "highlight-syntax", &ce->priv->highlight, NULL);
-		ce->priv->refresh_region = gtk_text_region_new (buffer);
+		ce->priv->refresh_region = gtk_source_region_new (buffer);
 
 		g_signal_connect_swapped (buffer,
 					  "notify::highlight-syntax",
@@ -5477,7 +5475,7 @@ update_syntax (GtkSourceContextEngine *ce,
 
 		line_info_destroy (&line);
 
-		gtk_text_region_add (ce->priv->refresh_region, &line_start, &line_end);
+		gtk_source_region_add (ce->priv->refresh_region, &line_start, &line_end);
 		analyzed_end = line_end_offset;
 		invalid = get_invalid_segment (ce);
 

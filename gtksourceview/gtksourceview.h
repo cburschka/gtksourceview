@@ -21,8 +21,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef __GTK_SOURCE_VIEW_H__
-#define __GTK_SOURCE_VIEW_H__
+#ifndef GTK_SOURCE_VIEW_H
+#define GTK_SOURCE_VIEW_H
 
 #include <gtk/gtk.h>
 #include <gtksourceview/gtksourcetypes.h>
@@ -253,6 +253,7 @@ GTK_SOURCE_AVAILABLE_IN_ALL
 void		 gtk_source_view_set_draw_spaces	(GtkSourceView            *view,
 							 GtkSourceDrawSpacesFlags  flags);
 
+GTK_SOURCE_AVAILABLE_IN_ALL
 GtkSourceDrawSpacesFlags
 		 gtk_source_view_get_draw_spaces	(GtkSourceView   *view);
 
@@ -278,4 +279,4 @@ GtkSourceBackgroundPatternType
 
 G_END_DECLS
 
-#endif /* end of __GTK_SOURCE_VIEW_H__ */
+#endif /* end of GTK_SOURCE_VIEW_H */

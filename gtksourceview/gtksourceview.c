@@ -49,6 +49,7 @@
 #include "gtksourcegutterrenderermarks.h"
 #include "gtksourceiter.h"
 #include "gtksourcetag.h"
+#include "gtksourcetag-private.h"
 
 /**
  * SECTION:view
@@ -1239,6 +1240,8 @@ notify_buffer_cb (GtkSourceView *view)
 static void
 gtk_source_view_init (GtkSourceView *view)
 {
+	GtkStyleContext *context;
+
 	GtkTargetList *target_list;
 
 	view->priv = gtk_source_view_get_instance_private (view);
@@ -1279,6 +1282,9 @@ gtk_source_view_init (GtkSourceView *view)
 			  "notify::buffer",
 			  G_CALLBACK (notify_buffer_cb),
 			  NULL);
+
+	context = gtk_widget_get_style_context (GTK_WIDGET (view));
+	gtk_style_context_add_class (context, "sourceview");
 }
 
 static void
@@ -2046,6 +2052,35 @@ gtk_source_view_extend_selection (GtkTextView            *text_view,
 										     end);
 }
 
+static void
+gtk_source_view_ensure_redrawn_rect_is_highlighted (GtkSourceView *view,
+						    cairo_t       *cr)
+{
+	GdkRectangle clip;
+	GtkTextIter iter1, iter2;
+
+	if (view->priv->source_buffer == NULL ||
+	    !gdk_cairo_get_clip_rectangle (cr, &clip))
+	{
+		return;
+	}
+
+	gtk_text_view_get_line_at_y (GTK_TEXT_VIEW (view), &iter1, clip.y, NULL);
+	gtk_text_iter_backward_line (&iter1);
+	gtk_text_view_get_line_at_y (GTK_TEXT_VIEW (view), &iter2, clip.y + clip.height, NULL);
+	gtk_text_iter_forward_line (&iter2);
+
+	DEBUG ({
+		g_print ("    draw area: %d - %d\n", clip.y, clip.y + clip.height);
+		g_print ("    lines to update: %d - %d\n",
+			 gtk_text_iter_get_line (&iter1),
+			 gtk_text_iter_get_line (&iter2));
+	});
+
+	_gtk_source_buffer_update_highlight (view->priv->source_buffer,
+					     &iter1, &iter2, FALSE);
+}
+
 /* This function is taken from gtk+/tests/testtext.c */
 static void
 gtk_source_view_get_lines (GtkTextView *text_view,
@@ -2133,32 +2168,13 @@ gtk_source_view_paint_line_background (GtkTextView    *text_view,
 				       int             height,
 				       const GdkRGBA  *color)
 {
-	GdkRectangle visible_rect;
-	GdkRectangle line_rect;
-	gint win_y;
-	gdouble clip_x1, clip_y1, clip_x2, clip_y2;
+	gdouble x1, y1, x2, y2;
 
-	gtk_text_view_get_visible_rect (text_view, &visible_rect);
-
-	gtk_text_view_buffer_to_window_coords (text_view,
-					       GTK_TEXT_WINDOW_TEXT,
-					       visible_rect.x,
-					       y,
-					       &line_rect.x,
-					       &win_y);
-	cairo_clip_extents (cr,
-			    &clip_x1, &clip_y1,
-			    &clip_x2, &clip_y2);
-
-	line_rect.x = clip_x1;
-	line_rect.width = clip_x2 - clip_x1;
-	line_rect.y = win_y;
-	line_rect.height = height;
+	cairo_clip_extents (cr, &x1, &y1, &x2, &y2);
 
 	gdk_cairo_set_source_rgba (cr, (GdkRGBA *)color);
 	cairo_set_line_width (cr, 1);
-	cairo_rectangle (cr, line_rect.x, line_rect.y + .5,
-			 line_rect.width, line_rect.height - 1);
+	cairo_rectangle (cr, x1 + .5, y + .5, x2 - x1 - 1, height - 1);
 	cairo_stroke_preserve (cr);
 	cairo_fill (cr);
 }
@@ -2186,21 +2202,6 @@ gtk_source_view_paint_marks_background (GtkSourceView *view,
 
 	y1 = clip.y;
 	y2 = y1 + clip.height;
-
-	/* get the extents of the line printing */
-	gtk_text_view_window_to_buffer_coords (text_view,
-	                                       GTK_TEXT_WINDOW_TEXT,
-	                                       0,
-	                                       y1,
-	                                       NULL,
-	                                       &y1);
-
-	gtk_text_view_window_to_buffer_coords (text_view,
-	                                       GTK_TEXT_WINDOW_TEXT,
-	                                       0,
-	                                       y2,
-	                                       NULL,
-	                                       &y2);
 
 	numbers = g_array_new (FALSE, FALSE, sizeof (gint));
 	pixels = g_array_new (FALSE, FALSE, sizeof (gint));
@@ -2297,12 +2298,8 @@ draw_space_at_iter (cairo_t      *cr,
 	gint x, y;
 	gdouble w;
 
-	gtk_text_view_buffer_to_window_coords (view,
-					       GTK_TEXT_WINDOW_TEXT,
-					       rect.x,
-					       rect.y + rect.height * 2 / 3,
-					       &x,
-					       &y);
+	x = rect.x;
+	y = rect.y + rect.height * 2 / 3;
 
 	/* if the space is at a line-wrap position we get 0 width
 	 * so we fallback to the height */
@@ -2323,12 +2320,8 @@ draw_tab_at_iter (cairo_t      *cr,
 	gint x, y;
 	gdouble w, h;
 
-	gtk_text_view_buffer_to_window_coords (view,
-					       GTK_TEXT_WINDOW_TEXT,
-					       rect.x,
-					       rect.y + rect.height * 2 / 3,
-					       &x,
-					       &y);
+	x = rect.x;
+	y = rect.y + rect.height * 2 / 3;
 
 	/* if the space is at a line-wrap position we get 0 width
 	 * so we fallback to the height */
@@ -2353,12 +2346,8 @@ draw_newline_at_iter (cairo_t      *cr,
 	gint x, y;
 	gdouble w, h;
 
-	gtk_text_view_buffer_to_window_coords (view,
-					       GTK_TEXT_WINDOW_TEXT,
-					       rect.x,
-					       rect.y + rect.height * 1 / 3,
-					       &x,
-					       &y);
+	x = rect.x;
+	y = rect.y + rect.height / 3;
 
 	/* width for new line is 0, we use 2 * h */
 	w = 2 * rect.height;
@@ -2397,12 +2386,8 @@ draw_nbsp_at_iter (cairo_t      *cr,
 	gint x, y;
 	gdouble w, h;
 
-	gtk_text_view_buffer_to_window_coords (view,
-	                                       GTK_TEXT_WINDOW_TEXT,
-	                                       rect.x,
-	                                       rect.y + rect.height / 2,
-	                                       &x,
-	                                       &y);
+	x = rect.x;
+	y = rect.y + rect.height / 2;
 
 	/* if the space is at a line-wrap position we get 0 width
 	 * so we fallback to the height */
@@ -2463,18 +2448,15 @@ static void
 draw_spaces_tag_foreach (GtkTextTag *tag,
 			 gboolean   *found)
 {
-	if (GTK_SOURCE_IS_TAG (tag))
+	if (*found)
 	{
-		gboolean draw_spaces_set;
+		return;
+	}
 
-		g_object_get (tag,
-			      "draw-spaces-set", &draw_spaces_set,
-			      NULL);
-
-		if (draw_spaces_set)
-		{
-			*found = TRUE;
-		}
+	if (GTK_SOURCE_IS_TAG (tag) &&
+	    _gtk_source_tag_effects_spaces (GTK_SOURCE_TAG (tag)))
+	{
+		*found = TRUE;
 	}
 }
 
@@ -2711,6 +2693,14 @@ get_end_iter (GtkTextView *text_view,
 	}
 }
 
+static inline gboolean
+is_space (gunichar c)
+{
+	return (g_unichar_isspace (c) ||
+		(g_unichar_break_type (c) == G_UNICODE_BREAK_NON_BREAKING_GLUE) ||
+		(g_unichar_type (c) == G_UNICODE_SPACE_SEPARATOR));
+}
+
 static void
 draw_tabs_and_spaces (GtkSourceView *view,
 		      cairo_t       *cr)
@@ -2746,16 +2736,6 @@ draw_tabs_and_spaces (GtkSourceView *view,
 	x2 = x1 + clip.width;
 	y2 = y1 + clip.height;
 
-	gtk_text_view_window_to_buffer_coords (text_view,
-	                                       GTK_TEXT_WINDOW_TEXT,
-	                                       x1, y1,
-	                                       &x1, &y1);
-
-	gtk_text_view_window_to_buffer_coords (text_view,
-	                                       GTK_TEXT_WINDOW_TEXT,
-	                                       x2, y2,
-	                                       &x2, &y2);
-
 	gtk_text_view_get_iter_at_location  (text_view,
 	                                     &s,
 	                                     x1, y1);
@@ -2773,8 +2753,10 @@ draw_tabs_and_spaces (GtkSourceView *view,
 
 	while (TRUE)
 	{
+		gunichar c = gtk_text_iter_get_char (&s);
 		gint ly;
-		if (space_needs_drawing (view, &s, &leading, &trailing))
+
+		if (is_space (c) && space_needs_drawing (view, &s, &leading, &trailing))
 		{
 			draw_spaces_at_iter (cr, text_view, &s);
 		}
@@ -2800,9 +2782,9 @@ draw_tabs_and_spaces (GtkSourceView *view,
 			}
 			gtk_text_view_get_line_yrange (text_view, &s, &ly, NULL);
 
-			gtk_text_view_get_iter_at_location  (text_view,
-							     &s,
-							     x1, ly);
+			gtk_text_view_get_iter_at_location (text_view,
+							    &s,
+							    x1, ly);
 
 			/* move back one char otherwise tabs may not
 			 * be redrawn */
@@ -2830,17 +2812,28 @@ static void
 gtk_source_view_paint_right_margin (GtkSourceView *view,
 				    cairo_t       *cr)
 {
-	GdkRectangle visible_rect;
+	GdkRectangle clip;
 	gdouble x;
-	gdouble clip_x1, clip_y1, clip_x2, clip_y2;
 
 	GtkTextView *text_view = GTK_TEXT_VIEW (view);
 
 #ifdef ENABLE_PROFILE
 	static GTimer *timer = NULL;
+
+	if (timer == NULL)
+	{
+		timer = g_timer_new ();
+	}
+
+	g_timer_start (timer);
 #endif
 
 	g_return_if_fail (view->priv->right_margin_line_color != NULL);
+
+	if (!gdk_cairo_get_clip_rectangle (cr, &clip))
+	{
+		return;
+	}
 
 	if (view->priv->cached_right_margin_pos < 0)
 	{
@@ -2850,44 +2843,28 @@ gtk_source_view_paint_right_margin (GtkSourceView *view,
 						  '_');
 	}
 
-#ifdef ENABLE_PROFILE
-	if (timer == NULL)
-	{
-		timer = g_timer_new ();
-	}
+	x = view->priv->cached_right_margin_pos + gtk_text_view_get_left_margin (text_view);
 
-	g_timer_start (timer);
-#endif
-	cairo_clip_extents (cr,
-			    &clip_x1, &clip_y1,
-			    &clip_x2, &clip_y2);
-
-	gtk_text_view_get_visible_rect (text_view, &visible_rect);
-
-	x = view->priv->cached_right_margin_pos - visible_rect.x +
-		gtk_text_view_get_left_margin (text_view);
-
-	/* Default line width is 2.0 which is too wide. */
 	cairo_set_line_width (cr, 1.0);
 
-	/* Offset with 0.5 is needed for a sharp line. */
-	cairo_move_to (cr, x + 0.5, clip_y1);
-	cairo_line_to (cr, x + 0.5, clip_y2);
+	if (x + 1 >= clip.x && x <= clip.x + clip.width)
+	{
+		cairo_move_to (cr, x + 0.5, clip.y);
+		cairo_line_to (cr, x + 0.5, clip.y + clip.height);
 
-	gdk_cairo_set_source_rgba (cr, view->priv->right_margin_line_color);
-
-	cairo_stroke (cr);
+		gdk_cairo_set_source_rgba (cr, view->priv->right_margin_line_color);
+		cairo_stroke (cr);
+	}
 
 	/* Only draw the overlay when the style scheme explicitly sets it. */
-	if (view->priv->right_margin_overlay_color != NULL && clip_x2 > x + 1)
+	if (view->priv->right_margin_overlay_color != NULL && clip.x + clip.width > x + 1)
 	{
 		/* Draw the rectangle next to the line (x+1). */
 		cairo_rectangle (cr,
-				 x + 1, clip_y1,
-				 clip_x2 - (x + 1), clip_y2 - clip_y1);
+				 x + 1, clip.y,
+				 clip.x + clip.width - (x + 1), clip.height);
 
 		gdk_cairo_set_source_rgba (cr, view->priv->right_margin_overlay_color);
-
 		cairo_fill (cr);
 	}
 
@@ -2899,14 +2876,27 @@ gtk_source_view_paint_right_margin (GtkSourceView *view,
 	});
 }
 
+static gint
+realign (gint  offset,
+	 guint align)
+{
+	if (offset > 0 && align > 0)
+	{
+		gint padding;
+
+		padding = (align - (offset % align)) % align;
+		return offset + padding;
+	}
+
+	return 0;
+}
+
 static void
 gtk_source_view_paint_background_pattern_grid (GtkSourceView *view,
 					       cairo_t       *cr)
 {
 	GdkRectangle clip;
-	GdkRectangle vis;
-	gdouble x;
-	gdouble y;
+	gint x, y, x2, y2;
 	PangoContext *context;
 	PangoLayout *layout;
 	gint grid_width = 16;
@@ -2924,27 +2914,24 @@ gtk_source_view_paint_background_pattern_grid (GtkSourceView *view,
 
 	cairo_save (cr);
 
-	cairo_set_line_width (cr, 1.0);
 	gdk_cairo_get_clip_rectangle (cr, &clip);
-	gtk_text_view_get_visible_rect (GTK_TEXT_VIEW (view), &vis);
 
+	cairo_set_line_width (cr, 1.0);
 	gdk_cairo_set_source_rgba (cr, &view->priv->background_pattern_color);
 
-	/*
-	 * The following constants come from gtktextview.c pixel cache
-	 * settings. Sadly, they are not exposed in the public API,
-	 * just keep them in sync here. 64 for X, height/2 for Y.
-	 */
-	x = (grid_width - (vis.x % grid_width)) - (64 / grid_width * grid_width) - grid_width + 2;
-	y = (grid_height - (vis.y % grid_height)) - (vis.height / 2 / grid_height * grid_height) - grid_height;
+	/* Align our drawing position with a multiple of the grid size. */
+	x = realign (clip.x - grid_width, grid_width);
+	y = realign (clip.y - grid_height, grid_height);
+	x2 = realign (x + clip.width + grid_width * 2, grid_width);
+	y2 = realign (y + clip.height + grid_height * 2, grid_height);
 
-	for (; x <= clip.x + clip.width; x += grid_width)
+	for (; x <= x2; x += grid_width)
 	{
 		cairo_move_to (cr, x + .5, clip.y - .5);
 		cairo_line_to (cr, x + .5, clip.y + clip.height - .5);
 	}
 
-	for (; y <= clip.y + clip.height; y += grid_height)
+	for (; y <= y2; y += grid_height)
 	{
 		cairo_move_to (cr, clip.x + .5, y - .5);
 		cairo_line_to (cr, clip.x + clip.width + .5, y - .5);
@@ -2986,39 +2973,9 @@ gtk_source_view_draw_layer (GtkTextView      *text_view,
 
 	cairo_save (cr);
 
-	if (layer == GTK_TEXT_VIEW_LAYER_BELOW)
+	if (layer == GTK_TEXT_VIEW_LAYER_BELOW_TEXT)
 	{
-		/* check if the draw is for the text window first, and
-		 * make sure the visible region is highlighted */
-		if (view->priv->source_buffer != NULL)
-		{
-			GdkRectangle visible_rect;
-			gdouble clip_x1, clip_y1, clip_x2, clip_y2;
-			GtkTextIter iter1, iter2;
-
-			gtk_text_view_get_visible_rect (text_view, &visible_rect);
-			cairo_clip_extents (cr,
-					    &clip_x1, &clip_y1,
-					    &clip_x2, &clip_y2);
-
-			gtk_text_view_get_line_at_y (text_view, &iter1,
-						     visible_rect.y + clip_y1, NULL);
-			gtk_text_iter_backward_line (&iter1);
-			gtk_text_view_get_line_at_y (text_view, &iter2,
-						     visible_rect.y + clip_y2, NULL);
-			gtk_text_iter_forward_line (&iter2);
-
-			DEBUG ({
-				g_print ("    draw area: %d - %d\n", visible_rect.y + clip_y1,
-					 visible_rect.y + clip_y2);
-				g_print ("    lines to update: %d - %d\n",
-					 gtk_text_iter_get_line (&iter1),
-					 gtk_text_iter_get_line (&iter2));
-			});
-
-			_gtk_source_buffer_update_highlight (view->priv->source_buffer,
-							     &iter1, &iter2, FALSE);
-		}
+		gtk_source_view_ensure_redrawn_rect_is_highlighted (view, cr);
 
 		if (view->priv->background_pattern == GTK_SOURCE_BACKGROUND_PATTERN_TYPE_GRID &&
 		    view->priv->background_pattern_color_set)
@@ -3035,7 +2992,7 @@ gtk_source_view_draw_layer (GtkTextView      *text_view,
 
 		gtk_source_view_paint_marks_background (view, cr);
 	}
-	else if (layer == GTK_TEXT_VIEW_LAYER_ABOVE)
+	else if (layer == GTK_TEXT_VIEW_LAYER_ABOVE_TEXT)
 	{
 		/* Draw the right margin vertical line + overlay. */
 		if (view->priv->show_right_margin)
@@ -3057,6 +3014,7 @@ static gboolean
 gtk_source_view_draw (GtkWidget *widget,
 		      cairo_t   *cr)
 {
+	GtkSourceView *view = GTK_SOURCE_VIEW (widget);
 	gboolean event_handled;
 
 #ifdef ENABLE_PROFILE
@@ -3074,6 +3032,16 @@ gtk_source_view_draw (GtkWidget *widget,
 	});
 
 	event_handled = GTK_WIDGET_CLASS (gtk_source_view_parent_class)->draw (widget, cr);
+
+	if (view->priv->left_gutter != NULL)
+	{
+		gtk_source_gutter_draw (view->priv->left_gutter, view, cr);
+	}
+
+	if (view->priv->right_gutter != NULL)
+	{
+		gtk_source_gutter_draw (view->priv->right_gutter, view, cr);
+	}
 
 	PROFILE ({
 		g_timer_stop (timer);
@@ -3143,22 +3111,21 @@ gtk_source_view_create_buffer (GtkTextView *text_view)
 /**
  * gtk_source_view_new:
  *
- * Creates a new #GtkSourceView. An empty default #GtkSourceBuffer will be
- * created for you and can be retrieved with gtk_text_view_get_buffer(). If you
- * want to specify your own buffer, consider gtk_source_view_new_with_buffer().
+ * Creates a new #GtkSourceView.
+ *
+ * By default, an empty #GtkSourceBuffer will be lazily created and can be
+ * retrieved with gtk_text_view_get_buffer().
+ *
+ * If you want to specify your own buffer, either override the
+ * #GtkTextViewClass create_buffer factory method, or use
+ * gtk_source_view_new_with_buffer().
  *
  * Returns: a new #GtkSourceView.
  */
 GtkWidget *
 gtk_source_view_new (void)
 {
-	GtkWidget *widget;
-	GtkSourceBuffer *buffer;
-
-	buffer = gtk_source_buffer_new (NULL);
-	widget = gtk_source_view_new_with_buffer (buffer);
-	g_object_unref (buffer);
-	return widget;
+	return g_object_new (GTK_SOURCE_TYPE_VIEW, NULL);
 }
 
 /**
@@ -4928,7 +4895,7 @@ gtk_source_view_style_updated (GtkWidget *widget)
 		set_tab_stops_internal (view);
 	}
 
-	/* make sure the margin position is recalculated on next expose */
+	/* make sure the margin position is recalculated on next redraw */
 	view->priv->cached_right_margin_pos = -1;
 }
 

@@ -3,8 +3,8 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ(2.64)
 
 m4_define(gtksourceview_major_version, 3)
-m4_define(gtksourceview_minor_version, 19)
-m4_define(gtksourceview_micro_version, 4)
+m4_define(gtksourceview_minor_version, 21)
+m4_define(gtksourceview_micro_version, 2)
 m4_define(gtksourceview_version, gtksourceview_major_version.gtksourceview_minor_version.gtksourceview_micro_version)
 
 AC_INIT([gtksourceview],
@@ -37,16 +37,16 @@ AC_SUBST(GTK_SOURCE_MICRO_VERSION)
 # 4. If any exported functions or data have been removed since the last
 #    public release, set AGE to 0.
 
-GSV_LT_CURRENT=6
+GSV_LT_CURRENT=7
 GSV_LT_REVISION=0
-GSV_LT_AGE=5
+GSV_LT_AGE=6
 GSV_LT_VERSION="$GSV_LT_CURRENT:$GSV_LT_REVISION:$GSV_LT_AGE"
 AC_SUBST(GSV_LT_VERSION)
 
 # Dependencies
-glib_req=2.47.0
-gtk_req=3.19.4
-libxml_req=2.6.0
+glib_req=2.48
+gtk_req=3.20
+libxml_req=2.6
 gladeui_req=3.9
 
 AC_CONFIG_SRCDIR([gtksourceview/gtksourcebuffer.h])
@@ -182,8 +182,7 @@ AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE], ["$GETTEXT_PACKAGE"], [Define to the gette
 
 # Documentation
 AX_REQUIRE_DEFINED([GTK_DOC_CHECK])
-# TODO bump to 1.25 once released.
-GTK_DOC_CHECK([1.24], [--flavour=no-tmpl])
+GTK_DOC_CHECK([1.25], [--flavour=no-tmpl])
 
 GLIB_PREFIX="`$PKG_CONFIG --variable=prefix glib-2.0`"
 GTK_PREFIX="`$PKG_CONFIG --variable=prefix gtk+-3.0`"
@@ -197,10 +196,11 @@ AC_SUBST(GDK_PIXBUF_PREFIX)
 
 # Installed Tests for gnome continuous integration
 AC_ARG_ENABLE(installed_tests,
-	AS_HELP_STRING([--enable-installed-tests],
-		[Install test programs (default: no)]),,
-		[enable_installed_tests=no])
-AM_CONDITIONAL(INSTALLED_TESTS, test "$enable_installed_tests" = "yes")
+              AS_HELP_STRING([--enable-installed-tests],
+                             [Install test programs (default: no)]),,
+              [enable_installed_tests=no])
+
+AM_CONDITIONAL(INSTALLED_TESTS, test "x$enable_installed_tests" = "xyes")
 
 # Introspection
 AX_REQUIRE_DEFINED([GOBJECT_INTROSPECTION_CHECK])
@@ -221,8 +221,17 @@ AC_SUBST(ABS_TOP_SRCDIR)
 # Output files
 AC_CONFIG_FILES([
 gtksourceview-3.0.pc
-gtksourceview-zip
 Makefile
+config.h.win32
+build/Makefile
+build/win32/Makefile
+build/win32/vs9/Makefile
+build/win32/vs9/gtksourceview-gen-srcs.vsprops
+build/win32/vs10/Makefile
+build/win32/vs10/gtksourceview-gen-srcs.props
+build/win32/vs11/Makefile
+build/win32/vs12/Makefile
+build/win32/vs14/Makefile
 data/Makefile
 data/glade/Makefile
 data/language-specs/Makefile
@@ -235,6 +244,7 @@ gtksourceview/completion-providers/Makefile
 gtksourceview/completion-providers/words/Makefile
 po/Makefile.in
 tests/Makefile
+testsuite/Makefile
 ])
 
 AC_OUTPUT
@@ -248,6 +258,9 @@ Configuration:
 	Compiler:		${CC}
 	Completion Providers:	${enable_providers}
 	Glade Catalog:		${glade_catalog}
+	Documentation:		${enable_gtk_doc}
 	GObject introspection:	${found_introspection}
 	Vala:			${enable_vala}
+	Code coverage:		${enable_code_coverage}
+	Installed tests:	${enable_installed_tests}
 "

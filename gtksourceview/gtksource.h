@@ -17,8 +17,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef __GTK_SOURCE_H__
-#define __GTK_SOURCE_H__
+#ifndef GTK_SOURCE_H
+#define GTK_SOURCE_H
 
 #include <gtksourceview/gtksourcetypes.h>
 #include <gtksourceview/gtksourcebuffer.h>
@@ -42,6 +42,7 @@
 #include <gtksourceview/gtksourcemark.h>
 #include <gtksourceview/gtksourcemarkattributes.h>
 #include <gtksourceview/gtksourceprintcompositor.h>
+#include <gtksourceview/gtksourceregion.h>
 #include <gtksourceview/gtksourcesearchcontext.h>
 #include <gtksourceview/gtksourcesearchsettings.h>
 #include <gtksourceview/gtksourcestyle.h>
@@ -58,4 +59,4 @@
 #include <gtksourceview/gtksourceview-typebuiltins.h>
 #include <gtksourceview/gtksourceautocleanups.h>
 
-#endif /* __GTK_SOURCE_H__ */
+#endif /* GTK_SOURCE_H */

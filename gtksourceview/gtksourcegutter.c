@@ -93,10 +93,6 @@ struct _GtkSourceGutterPrivate
 
 G_DEFINE_TYPE_WITH_PRIVATE (GtkSourceGutter, gtk_source_gutter, G_TYPE_OBJECT)
 
-static gboolean on_view_draw (GtkSourceView   *view,
-                              cairo_t         *cr,
-                              GtkSourceGutter *gutter);
-
 static gboolean on_view_motion_notify_event (GtkSourceView   *view,
                                              GdkEventMotion  *event,
                                              GtkSourceGutter *gutter);
@@ -292,12 +288,6 @@ set_view (GtkSourceGutter *gutter,
           GtkSourceView   *view)
 {
 	gutter->priv->view = view;
-
-	g_signal_connect_object (view,
-				 "draw",
-				 G_CALLBACK (on_view_draw),
-				 gutter,
-				 G_CONNECT_AFTER);
 
 	g_signal_connect_object (view,
 				 "motion-notify-event",
@@ -974,9 +964,8 @@ apply_style (GtkSourceGutter *gutter,
 	 * are not set by gtk.
 	 */
 	gtk_style_context_add_class (style_context, class);
-
 	gtk_style_context_get_color (style_context,
-	                             gtk_widget_get_state_flags (GTK_WIDGET (view)),
+	                             gtk_style_context_get_state (style_context),
 	                             &fg_color);
 
 	gdk_cairo_set_source_rgba (cr, &fg_color);
@@ -1103,7 +1092,18 @@ draw_cells (GtkSourceGutter *gutter,
 
 		if (!gtk_text_iter_ends_line (&end))
 		{
-			gtk_text_iter_forward_to_line_end (&end);
+			/*
+			 * It turns out that gtk_text_iter_forward_to_line_end
+			 * is slower than jumping to the next line in the
+			 * btree index and then moving backwards a character.
+			 * We don't really care that we might be after the
+			 * newline breaking characters, since those are part
+			 * of the same line (rather than the next line).
+			 */
+			if (gtk_text_iter_forward_line (&end))
+			{
+				gtk_text_iter_backward_char (&end);
+			}
 		}
 
 		/* Possible improvement: if buffer and window coords have the
@@ -1221,10 +1221,10 @@ end_draw (GtkSourceGutter *gutter)
 	}
 }
 
-static gboolean
-on_view_draw (GtkSourceView   *view,
-              cairo_t         *cr,
-              GtkSourceGutter *gutter)
+void
+gtk_source_gutter_draw (GtkSourceGutter *gutter,
+                        GtkSourceView   *view,
+                        cairo_t         *cr)
 {
 	GdkRectangle clip;
 	GtkTextView *text_view;
@@ -1238,7 +1238,7 @@ on_view_draw (GtkSourceView   *view,
 
 	if (!get_clip_rectangle (gutter, view, cr, &clip))
 	{
-		return GDK_EVENT_PROPAGATE;
+		return;
 	}
 
 	gutter->priv->is_drawing = TRUE;
@@ -1295,8 +1295,6 @@ on_view_draw (GtkSourceView   *view,
 
 	g_array_free (renderer_widths, TRUE);
 	lines_info_free (info);
-
-	return GDK_EVENT_PROPAGATE;
 }
 
 static Renderer *
@@ -1455,9 +1453,9 @@ redraw_for_window (GtkSourceGutter *gutter,
                    gint             y)
 {
 	Renderer *at_x = NULL;
+	gint start = 0;
 	GList *item;
 	gboolean redraw;
-	gint start;
 
 	if (event->window != get_window (gutter) && act_on_window)
 	{

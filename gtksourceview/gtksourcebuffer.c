@@ -99,8 +99,8 @@
  * # Context Classes
  *
  * It is possible to retrieve some information from the syntax highlighting
- * engine. There are currently three default context classes that are
- * applied to regions of a #GtkSourceBuffer:
+ * engine. The default context classes that are applied to regions of a
+ * #GtkSourceBuffer:
  *  - <emphasis>comment</emphasis>: the region delimits a comment;
  *  - <emphasis>no-spell-check</emphasis>: the region should not be spell checked;
  *  - <emphasis>path</emphasis>: the region delimits a path to a file;
@@ -110,7 +110,16 @@
  * since the functions like gtk_source_buffer_iter_has_context_class() take
  * a string parameter as the context class.
  *
- * Each context class has an associated #GtkTextTag with the name
+ * #GtkSourceBuffer provides an API to access the context classes:
+ * gtk_source_buffer_iter_has_context_class(),
+ * gtk_source_buffer_get_context_classes_at_iter(),
+ * gtk_source_buffer_iter_forward_to_context_class_toggle() and
+ * gtk_source_buffer_iter_backward_to_context_class_toggle().
+ *
+ * And the #GtkSourceBuffer::highlight-updated signal permits to be notified
+ * when a context class region changes.
+ *
+ * Each context class has also an associated #GtkTextTag with the name
  * <emphasis>gtksourceview:context-classes:&lt;name&gt;</emphasis>. For example to
  * retrieve the #GtkTextTag for the string context class, one can write:
  * |[
@@ -120,6 +129,20 @@
  * tag_table = gtk_text_buffer_get_tag_table (buffer);
  * tag = gtk_text_tag_table_lookup (tag_table, "gtksourceview:context-classes:string");
  * ]|
+ *
+ * The tag must be used for read-only purposes.
+ *
+ * Accessing a context class via the associated #GtkTextTag is less
+ * convenient than the #GtkSourceBuffer API, because:
+ *  - The tag doesn't always exist, you need to listen to the
+ *    #GtkTextTagTable::tag-added and #GtkTextTagTable::tag-removed signals.
+ *  - Instead of the #GtkSourceBuffer::highlight-updated signal, you can listen
+ *    to the #GtkTextBuffer::apply-tag and #GtkTextBuffer::remove-tag signals.
+ *
+ * A possible use-case for accessing a context class via the associated
+ * #GtkTextTag is to read the region but without adding a hard dependency on the
+ * GtkSourceView library (for example for a spell-checking library that wants to
+ * read the no-spell-check region).
  */
 
 /*
@@ -141,6 +164,7 @@
 #define PROFILE(x)
 #endif
 
+#define UPDATE_BRACKET_DELAY		50
 #define BRACKET_MATCHING_CHARS_LIMIT	10000
 #define CONTEXT_CLASSES_PREFIX		"gtksourceview:context-classes:"
 
@@ -193,6 +217,8 @@ struct _GtkSourceBufferPrivate
 	GList *search_contexts;
 
 	GtkTextTag *invalid_char_tag;
+
+	guint bracket_update_handler;
 
 	guint highlight_syntax : 1;
 	guint highlight_brackets : 1;
@@ -569,6 +595,12 @@ gtk_source_buffer_dispose (GObject *object)
 	GtkSourceBuffer *buffer = GTK_SOURCE_BUFFER (object);
 	GList *l;
 
+	if (buffer->priv->bracket_update_handler != 0)
+	{
+		g_source_remove (buffer->priv->bracket_update_handler);
+		buffer->priv->bracket_update_handler = 0;
+	}
+
 	if (buffer->priv->undo_manager != NULL)
 	{
 		set_undo_manager (buffer, NULL);
@@ -872,6 +904,84 @@ bracket_pair (gunichar  base_char,
 	return pair;
 }
 
+/*
+ * This function works similar to gtk_text_buffer_remove_tag() except that
+ * instead of taking the optimization to make removing tags fast in terms
+ * of wall clock time, it tries to avoiding to much time of the screen
+ * by minimizing the damage regions. This results in fewer full-redraws
+ * when updating the text marks. To see the difference, compare this to
+ * gtk_text_buffer_remove_tag() and enable the "show pixel cache" feature
+ * the GTK+ inspector.
+ */
+static void
+remove_tag_with_minimal_damage (GtkTextBuffer     *buffer,
+                                GtkTextTag        *tag,
+                                const GtkTextIter *begin,
+                                const GtkTextIter *end)
+{
+	GtkTextIter tag_begin = *begin;
+	GtkTextIter tag_end;
+
+	if (!gtk_text_iter_starts_tag (&tag_begin, tag))
+	{
+		if (!gtk_text_iter_forward_to_tag_toggle (&tag_begin, tag))
+		{
+			return;
+		}
+	}
+
+	while (gtk_text_iter_starts_tag (&tag_begin, tag) &&
+	       gtk_text_iter_compare (&tag_begin, end) < 0)
+	{
+		gint count = 1;
+
+		tag_end = tag_begin;
+
+		/*
+		 * We might have found the start of another tag embedded
+		 * inside this tag. So keep scanning forward until we have
+		 * reached the right number of end tags.
+		 */
+
+		while (gtk_text_iter_forward_to_tag_toggle (&tag_end, tag))
+		{
+			if (gtk_text_iter_starts_tag (&tag_end, tag))
+			{
+				count++;
+			}
+			else if (gtk_text_iter_ends_tag (&tag_end, tag))
+			{
+				if (--count == 0)
+				{
+					break;
+				}
+			}
+		}
+
+		if (gtk_text_iter_ends_tag (&tag_end, tag))
+		{
+			gtk_text_buffer_remove_tag (buffer, tag, &tag_begin, &tag_end);
+
+			tag_begin = tag_end;
+
+			/*
+			 * Move to the next start tag. It's possible to have an overlapped
+			 * end tag, which would be non-ideal, but possible.
+			 */
+			if (!gtk_text_iter_starts_tag (&tag_begin, tag))
+			{
+				while (gtk_text_iter_forward_to_tag_toggle (&tag_begin, tag))
+				{
+					if (gtk_text_iter_starts_tag (&tag_begin, tag))
+					{
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
 static void
 update_bracket_highlighting (GtkSourceBuffer *source_buffer)
 {
@@ -890,10 +1000,10 @@ update_bracket_highlighting (GtkSourceBuffer *source_buffer)
 
 		gtk_text_buffer_get_bounds (buffer, &start, &end);
 
-		gtk_text_buffer_remove_tag (buffer,
-					    source_buffer->priv->bracket_match_tag,
-					    &start,
-					    &end);
+		remove_tag_with_minimal_damage (GTK_TEXT_BUFFER (source_buffer),
+		                                source_buffer->priv->bracket_match_tag,
+		                                &start,
+		                                &end);
 	}
 
 	if (!source_buffer->priv->highlight_brackets)
@@ -961,13 +1071,59 @@ update_bracket_highlighting (GtkSourceBuffer *source_buffer)
 	}
 }
 
+static gboolean
+do_bracket_update (gpointer user_data)
+{
+	GtkSourceBuffer *buffer = user_data;
+
+	buffer->priv->bracket_update_handler = 0;
+
+	update_bracket_highlighting (buffer);
+
+	return G_SOURCE_REMOVE;
+}
+
+static void
+queue_bracket_update (GtkSourceBuffer *buffer)
+{
+	if (buffer->priv->bracket_update_handler != 0)
+	{
+		g_source_remove (buffer->priv->bracket_update_handler);
+	}
+
+	/*
+	 * Queue an update to the bracket location instead of doing it
+	 * immediately. We are likely going to be servicing a draw deadline
+	 * immediately, so blocking to find the match and invalidating
+	 * visible regions causes animations to stutter. Instead, give
+	 * ourself just a little bit of a delay to catch up.
+	 *
+	 * The value for this delay was found experimentally, as 25msec
+	 * resulted in continuing to see frame stutter, but 50 was not
+	 * distinguishable from having matching-brackets disabled.
+	 * The animation in gtkscrolledwindow is 200, but that creates
+	 * an undesireable delay before the match is shown to the user.
+	 * 50msec errors on the side of "immediate", but without the
+	 * frame stutter.
+	 *
+	 * If we had access to a GdkFrameClock, we might consider using
+	 * ::update() or ::after-paint() to synchronize this.
+	 */
+	buffer->priv->bracket_update_handler =
+		gdk_threads_add_timeout_full (G_PRIORITY_LOW,
+					      UPDATE_BRACKET_DELAY,
+					      do_bracket_update,
+					      buffer,
+					      NULL);
+}
+
 /* Although this function is not really useful (update_bracket_highlighting()
  * could be called directly), the name cursor_moved() is more meaningful.
  */
 static void
 cursor_moved (GtkSourceBuffer *buffer)
 {
-	update_bracket_highlighting (buffer);
+	queue_bracket_update (buffer);
 }
 
 static void
@@ -975,7 +1131,7 @@ gtk_source_buffer_real_highlight_updated (GtkSourceBuffer *buffer,
 					  GtkTextIter     *start,
 					  GtkTextIter     *end)
 {
-	update_bracket_highlighting (buffer);
+	queue_bracket_update (buffer);
 }
 
 static void
@@ -2248,7 +2404,7 @@ gtk_source_buffer_get_context_classes_at_iter (GtkSourceBuffer   *buffer,
 /**
  * gtk_source_buffer_iter_forward_to_context_class_toggle:
  * @buffer: a #GtkSourceBuffer.
- * @iter: (inout): a #GtkTextIter.
+ * @iter: a #GtkTextIter.
  * @context_class: the context class.
  *
  * Moves forward to the next toggle (on or off) of the context class. If no
@@ -2287,7 +2443,7 @@ gtk_source_buffer_iter_forward_to_context_class_toggle (GtkSourceBuffer *buffer,
 /**
  * gtk_source_buffer_iter_backward_to_context_class_toggle:
  * @buffer: a #GtkSourceBuffer.
- * @iter: (inout): a #GtkTextIter.
+ * @iter: a #GtkTextIter.
  * @context_class: the context class.
  *
  * Moves backward to the next toggle (on or off) of the context class. If no

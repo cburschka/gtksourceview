@@ -21,8 +21,8 @@
  * Author: Sébastien Wilmet
  */
 
-#ifndef __GTK_SOURCE_TAG_H__
-#define __GTK_SOURCE_TAG_H__
+#ifndef GTK_SOURCE_TAG_H
+#define GTK_SOURCE_TAG_H
 
 #include <gtk/gtk.h>
 #include <gtksourceview/gtksourcetypes.h>
@@ -30,6 +30,8 @@
 G_BEGIN_DECLS
 
 #define GTK_SOURCE_TYPE_TAG (gtk_source_tag_get_type ())
+
+GTK_SOURCE_AVAILABLE_IN_3_20
 G_DECLARE_DERIVABLE_TYPE (GtkSourceTag, gtk_source_tag,
 			  GTK_SOURCE, TAG,
 			  GtkTextTag)
@@ -46,4 +48,4 @@ GtkTextTag *	gtk_source_tag_new		(const gchar *name);
 
 G_END_DECLS
 
-#endif /* __GTK_SOURCE_TAG_H__ */
+#endif /* GTK_SOURCE_TAG_H */

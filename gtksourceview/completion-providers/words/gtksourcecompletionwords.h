@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef __GTK_SOURCE_COMPLETION_WORDS_H__
-#define __GTK_SOURCE_COMPLETION_WORDS_H__
+#ifndef GTK_SOURCE_COMPLETION_WORDS_H
+#define GTK_SOURCE_COMPLETION_WORDS_H
 
 #include <gtksourceview/gtksourcecompletionprovider.h>
 #include <gtk/gtk.h>
@@ -48,18 +48,22 @@ struct _GtkSourceCompletionWordsClass {
 	GObjectClass parent_class;
 };
 
+GTK_SOURCE_AVAILABLE_IN_ALL
 GType		gtk_source_completion_words_get_type	(void) G_GNUC_CONST;
 
+GTK_SOURCE_AVAILABLE_IN_ALL
 GtkSourceCompletionWords *
 		gtk_source_completion_words_new 	(const gchar              *name,
 		                                         GdkPixbuf                *icon);
 
+GTK_SOURCE_AVAILABLE_IN_ALL
 void 		gtk_source_completion_words_register 	(GtkSourceCompletionWords *words,
                                                          GtkTextBuffer            *buffer);
 
+GTK_SOURCE_AVAILABLE_IN_ALL
 void 		gtk_source_completion_words_unregister 	(GtkSourceCompletionWords *words,
                                                          GtkTextBuffer            *buffer);
 
 G_END_DECLS
 
-#endif /* __GTK_SOURCE_COMPLETION_WORDS_H__ */
+#endif /* GTK_SOURCE_COMPLETION_WORDS_H */

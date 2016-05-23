@@ -43,6 +43,7 @@ libgtksourceview_public_headers =		\
 	gtksourcemark.h				\
 	gtksourcemarkattributes.h		\
 	gtksourceprintcompositor.h		\
+	gtksourceregion.h			\
 	gtksourcesearchcontext.h		\
 	gtksourcesearchsettings.h		\
 	gtksourcestyle.h			\
@@ -79,6 +80,7 @@ libgtksourceview_public_c_files =		\
 	gtksourcemark.c				\
 	gtksourcemarkattributes.c		\
 	gtksourceprintcompositor.c		\
+	gtksourceregion.c			\
 	gtksourcesearchcontext.c		\
 	gtksourcesearchsettings.c		\
 	gtksourcestyle.c			\
@@ -113,11 +115,11 @@ libgtksourceview_private_headers =		\
 	gtksourcepixbufhelper.h			\
 	gtksourceregex.h			\
 	gtksourcestyle-private.h		\
+	gtksourcetag-private.h			\
 	gtksourcetypes-private.h		\
 	gtksourceundomanagerdefault.h		\
 	gtksourceview-i18n.h			\
-	gtksourceview-utils.h			\
-	gtktextregion.h
+	gtksourceview-utils.h
 
 libgtksourceview_private_c_files =	\
 	gtksourcebufferinputstream.c	\
@@ -136,8 +138,7 @@ libgtksourceview_private_c_files =	\
 	gtksourceregex.c		\
 	gtksourceundomanagerdefault.c	\
 	gtksourceview-i18n.c		\
-	gtksourceview-utils.c 		\
-	gtktextregion.c
+	gtksourceview-utils.c
 
 # Split in a helper library, so the private functions can be used in unit tests.
 noinst_LTLIBRARIES = libgtksourceview-core.la
@@ -203,6 +204,9 @@ gtksourceview-typebuiltins.c: stamp-gtksourceview-typebuiltins.c
 stamp-gtksourceview-typebuiltins.c: Makefile.am $(libgtksourceview_public_headers)
 	$(AM_V_GEN) (cd $(srcdir) \
 	 && $(GLIB_MKENUMS) \
+			--fhead "#ifdef HAVE_CONFIG_H\n" \
+			--fhead "#include \"config.h\"\n" \
+			--fhead "#endif\n\n" \
 			--fhead "#include <glib-object.h>\n" \
 			--fhead "#include \"gtksourceversion.h\"\n" \
 			--fhead "#include \"gtksourceview-typebuiltins.h\"\n\n" \
@@ -227,12 +231,13 @@ gtksourceview-typebuiltins.h: stamp-gtksourceview-typebuiltins.h
 stamp-gtksourceview-typebuiltins.h: Makefile.am $(libgtksourceview_public_headers)
 	$(AM_V_GEN) (cd $(srcdir) \
 	 && $(GLIB_MKENUMS) \
-			--fhead "#ifndef __GTKSOURCEVIEW_TYPEBUILTINS_H__\n" \
-			--fhead "#define __GTKSOURCEVIEW_TYPEBUILTINS_H__\n\n" \
-			--ftail "#endif /* __GTKSOURCEVIEW_TYPEBUILTINS_H__ */\n" \
+			--fhead "#ifndef GTKSOURCEVIEW_TYPEBUILTINS_H\n" \
+			--fhead "#define GTKSOURCEVIEW_TYPEBUILTINS_H\n\n" \
+			--ftail "#endif /* GTKSOURCEVIEW_TYPEBUILTINS_H */\n" \
 			--fprod "#include <gtksourceview/@filename@>\n" \
 			--eprod "G_BEGIN_DECLS\n" \
 			--eprod "#define GTK_TYPE_@ENUMSHORT@ @enum_name@_get_type()\n" \
+			--eprod "GTK_SOURCE_ENUM_EXTERN\n" \
 			--eprod "GType @enum_name@_get_type (void);\n" \
 			--eprod "G_END_DECLS\n\n" \
 		$(libgtksourceview_public_headers) ) > xgen-gth \
@@ -324,5 +329,80 @@ vapi_DATA =			\
 CLEANFILES += $(vapi_DATA)
 
 endif # ENABLE_VAPIGEN
+
+# MSVC items
+
+# Pull in the libgtksourcecompletionwords sources since on MSVC we want to
+# build everything in the same .dll with no intermediate libs
+gtksource_win32_more_sources =						\
+	completion-providers/words/gtksourcecompletionwords.c		\
+	completion-providers/words/gtksourcecompletionwordsbuffer.c	\
+	completion-providers/words/gtksourcecompletionwordslibrary.c	\
+	completion-providers/words/gtksourcecompletionwordsproposal.c	\
+	completion-providers/words/gtksourcecompletionwordsutils.c
+
+MSVCPROJS = gtksourceview
+
+gtksourceview_FILES = 					\
+	$(libgtksourceview_public_c_files)		\
+	$(libgtksourceview_private_c_files)		\
+	$(nodist_libgtksourceview_core_la_SOURCES)	\
+	$(gtksource_win32_more_sources)
+
+gtksourceview_EXCLUDES = dummy
+gtksourceview_HEADERS_DIR = $(libgtksourceview_3_0_includedir)
+gtksourceview_HEADERS_INST = \
+	$(libgtksourceview_public_headers)	\
+	$(nodist_libgtksourceview_3_0_include_HEADERS)
+
+gtksourceview_HEADERS_EXCLUDES = dummy
+
+include $(top_srcdir)/build/Makefile.msvcproj
+
+$(top_builddir)/build/win32/enums.headers: $(libgtksourceview_public_headers)
+	-$(RM) $(top_builddir)/build/win32/enum.headers
+	for F in $(libgtksourceview_public_headers); do \
+		case $$F in \
+		*.h) \
+			echo $$F' ^'>>$(top_builddir)/build/win32/enum.headers \
+			;; \
+		esac \
+	done
+
+# NMake/MSVC introspection
+if HAVE_INTROSPECTION
+NMAKE_INTROSPECTION_FILES = \
+	$(top_builddir)/build/win32/GtkSource-3.0.gir.msvc.introspect	\
+	$(top_builddir)/build/win32/GtkSource_3_0_gir_list
+
+MSVC_INTROSPECT_GIRS = GtkSource-3.0.gir
+
+GtkSource_3_0_gir_MSVC_FILES = \
+	$(libgtksourcecompletionwords_files)	\
+	$(libgtksourceview_public_headers)	\
+	$(libgtksourceview_public_c_files)	\
+	$(BUILT_SOURCES)
+
+GtkSource_3_0_gir_MSVC_INCLUDE_GIRS = Gtk-3.0 Gdk-3.0
+GtkSource_3_0_gir_MSVC_PACKAGES = gtk+-3.0 gdk-3.0
+GtkSource_3_0_gir_MSVC_EXPORT_PACKAGES = gtksourceview-3.0
+GtkSource_3_0_gir_MSVC_LIBS = gtksourceview-3.0
+GtkSource_3_0_gir_MSVC_CFLAGS = -I..\\..
+
+GtkSource_3_0_gir_MSVC_SCANNERFLAGS = \
+	--c-include=gtksourceview/gtksource.h	\
+	--warn-all	\
+	--filelist=GtkSource_3_0_gir_list
+
+include $(top_srcdir)/build/Makefile.msvc-introspection
+else
+NMAKE_INTROSPECTION_FILES =
+endif
+
+dist-hook: \
+	$(top_builddir)/build/win32/enums.headers		\
+	$(top_builddir)/build/win32/vs9/gtksourceview.vcproj	\
+	$(top_builddir)/build/win32/vs9/gtksourceview.headers	\
+	$(NMAKE_INTROSPECTION_FILES)
 
 -include $(top_srcdir)/git.mk
